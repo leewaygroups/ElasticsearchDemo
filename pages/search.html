@@ -1,0 +1,18 @@
+<div class="search-form">
+    <form ng-submit="search()">
+        <input ng-model="searchTerms" type="text" placeholder="Search .." class="search-input">
+        <input type="submit" value="Search" class="search-submit">
+    </form>
+</div>
+<section class="results">
+    <h1 class="search-title">
+        Results
+    </h1>
+
+    <ul>
+        <li ng-repeat="movie in results.documents">
+            <strong>{{movie.title}}</strong>
+            <p>{{movie.director}}</p>
+        </li>
+    </ul>
+</section>
