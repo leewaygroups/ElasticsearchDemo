@@ -6,8 +6,9 @@
 </div>
 <section class="results">
     <h1 class="search-title">
-        Results
+        Results for <strong>{{results.searchTerms}}</strong> ({{results.documentsCount}})
     </h1>
+    <p ng-if="noResults">No results were found for your search</p>
 
     <ul>
         <li ng-repeat="movie in results.documents">
@@ -15,4 +16,8 @@
             <p>{{movie.director}}</p>
         </li>
     </ul>
+
+    <div class="throbber" ng-if="isSearching">
+        SEARCHING &hellip;
+    </div>
 </section>

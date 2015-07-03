@@ -2,28 +2,53 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
 
 .config(function($routeProvider) {
     $routeProvider
-
         .when('/', {
-        templateUrl: 'pages/search.html',
-        controller: 'searchController'
-    })
+            templateUrl: 'pages/search.html',
+            controller: 'searchController'
+        })
 })
 
-.controller('searchController', ['$scope', 'searchService', function($scope, searchService) {
+.controller('searchController', ['$scope', 'elasticFactory', function($scope, elasticFactory) {
+    $scope.searchTerms = null;
+    $scope.noResults = false;
+    $scope.isSearching = false;
+
     $scope.results = {
         searchTerms: null,
+        documentsCount: null,
         documents: []
     };
 
+    var resetResults = function(){
+        $scope.noResults = false;
+        $scope.results.documents = [];
+        $scope.results.documentsCount = null;
+    }
+
     var getResult = function() {
-        searchService.search($scope.results.searchTerms).then(function(moviesIndexReturn) {
-            $scope.results.documents = searchService.formatElasticSearchResult(moviesIndexReturn.hits.hits);
+        $scope.isSearching = true;
+
+        elasticFactory.search($scope.results.searchTerms).then(function(moviesIndexReturn) {
+            var totalHits = moviesIndexReturn.hits.total;
+
+            if(totalHits){
+                $scope.results.documentsCount = totalHits;
+                $scope.results.documents = elasticFactory.formatElasticSearchResult(moviesIndexReturn.hits.hits);
+            }else{
+                $scope.noResults = true;
+            }
+
+            $scope.isSearching = false;
+
+
+        }, function(error){
+            console.log("ERROR: " + error.message);
+            $scope.isSearching = false;
         });
     };
 
-    $scope.searchTerms = null;
-
     $scope.search = function() {
+        resetResults();
         var searchTerms = $scope.searchTerms;
 
         if (!searchTerms) {
@@ -36,33 +61,39 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
 
 }])
 
-.service('searchService', ['$q', 'esFactory', function($q, esFactory) {
+.factory('elasticFactory', ['$q', 'esFactory', function($q, esFactory) {
+    var service = {};
     var elasticClient = esFactory({
         location: 'localhost:9200',
         log: 'trace'
     });
 
-    /* elasticClient.ping({
-         requestTimeout: 30000,
+    service.serverUtils = {
+        pingElasticServer: function() {
+            elasticClient.ping({
+                requestTimeout: 30000,
 
-         // undocumented params are appended to the query string
-         hello: "elasticsearch!"
-     }, function(error) {
-         if (error) {
-             console.error('elasticsearch cluster is down!');
-         } else {
-             console.log('All is well');
-         }
-     });*/
+                hello: "elasticsearch!"
+            }, function(error) {
+                if (error) {
+                    console.error('Wahala!!!, elasticsearch cluster is down!');
+                } else {
+                    console.log('All is well, even inside the well!!!');
+                }
+            });
+        }
+    }
 
-    this.search = function(searchTerms) {
+    service.search = function(searchTerms) {
         var deferred = $q.defer();
 
         elasticClient.search({
             index: 'movies',
-            query: {
-                query_string: {
-                    query: searchTerms
+            body: {
+                "query": {
+                    "match": {
+                        "title": searchTerms
+                    }
                 }
             }
         }).then(function(moviesIndexReturn) {
@@ -74,11 +105,10 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
             deferred.reject(error);
         });
 
-
         return deferred.promise;
-    }
+    };
 
-    this.formatElasticSearchResult = function(documentsHits) {
+    service.formatElasticSearchResult = function(documentsHits) {
         var fomartedResult = [];
 
         documentsHits.forEach(function(document) {
@@ -86,5 +116,7 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
         });
 
         return fomartedResult;
-    }
+    };
+
+    return service;
 }]);
