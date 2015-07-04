@@ -20,6 +20,18 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch', 'ngSani
         documents: []
     };
 
+    //sort
+    $scope.sortOptions = [
+        {name: '_score', displayName: 'Relevancy', direction: 'desc'},
+        {name: 'year', displayName: 'Year', direction: 'asc'}
+    ];
+
+    $scope.selectedSort = $scope.sortOptions[0];
+    $scope.updateSort = function(){
+        resetResults();
+        getResults();
+    };
+
     var resetResults = function(){
         $scope.noResults = false;
         $scope.resultsPage = 0;
@@ -31,13 +43,16 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch', 'ngSani
     var getResults = function() {
         $scope.isSearching = true;
 
-        elasticFactory.search($scope.results.searchTerms, $scope.resultsPage).then(function(moviesIndexReturn) {
+        elasticFactory.search($scope.results.searchTerms, $scope.resultsPage, $scope.selectedSort).then(function(moviesIndexReturn) {
             var totalHits = moviesIndexReturn.hits.total;
 
             if(totalHits){
                 $scope.results.documentsCount = totalHits;
                 $scope.results.documents.push
                     .apply($scope.results.documents, elasticFactory.formatElasticSearchResult(moviesIndexReturn.hits.hits));
+
+                elasticFactory.filterService.formatFilters(moviesIndexReturn.aggregations);
+                console.log(elasticFactory.filterService.filters.availableFilters);
 
             }else{
                 $scope.noResults = true;
@@ -104,8 +119,11 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch', 'ngSani
         }
     }
 
-    service.search = function(searchTerms, resultsPage) {
+    service.search = function(searchTerms, resultsPage, selectedSort) {
         var deferred = $q.defer();
+
+        var sortObject = {};
+        sortObject[selectedSort.name] = selectedSort.direction;
 
         elasticClient.search({
             index: 'movies',
@@ -115,7 +133,13 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch', 'ngSani
                         _all: searchTerms
                     }
                 },
+                sort: [sortObject],
                 from: resultsPage * 10,
+                aggs: {
+                    genre: {
+                        terms: {field: "genres"}
+                    }
+                },
                 highlight: {
                     fields: {
                         "title": {number_of_fragmenets: 0},
@@ -156,6 +180,49 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch', 'ngSani
 
         return fomartedResult;
     };
+
+    service.filterService = {
+        filters: {
+            availableFilters: {},
+            selectedFilters: []
+        },
+
+        findSelectedFilter: function(field, value){
+            var selectedFilters =  this.filters.selectedFilters;
+
+            for(var i=0; i<selectedFilters.length; i++){
+                var obj = selectedFilters[i];
+                if(obj.field == field && obj.value == value){
+                    return i;
+                }
+            }
+
+            return -1
+        },
+
+        formatFilters: function(aggregations){
+            var self = this;
+            var formattedFilters = {};
+
+            for(var aggregation in aggregations){
+                if(aggregations.hasOwnProperty(aggregation)){
+                    var filters = aggregations[aggregation].buckets.map(function(obj){
+                        var isSelected = function(){
+                            return self.findSelectedFilter(aggregation, obj.key) == -1 ? false : true;
+                        };
+
+                        return {
+                            value: obj.key,
+                            count: obj.doc_count,
+                            isSelected: isSelected()
+                        }
+                    });
+
+                    formattedFilters[aggregation] = filters;
+                }
+            }
+        }
+    }
 
     return service;
 }])
