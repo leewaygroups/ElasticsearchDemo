@@ -1,4 +1,4 @@
-var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
+var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch', 'ngSanitize'])
 
 .config(function($routeProvider) {
     $routeProvider
@@ -8,10 +8,11 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
         })
 })
 
-.controller('searchController', ['$scope', 'elasticFactory', function($scope, elasticFactory) {
+.controller('searchController', ['$scope', 'elasticFactory', '$sce', function($scope, elasticFactory, $sce) {
     $scope.searchTerms = null;
     $scope.noResults = false;
     $scope.isSearching = false;
+    $scope.resultsPage = 0;
 
     $scope.results = {
         searchTerms: null,
@@ -21,19 +22,23 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
 
     var resetResults = function(){
         $scope.noResults = false;
+        $scope.resultsPage = 0;
+
         $scope.results.documents = [];
         $scope.results.documentsCount = null;
     }
 
-    var getResult = function() {
+    var getResults = function() {
         $scope.isSearching = true;
 
-        elasticFactory.search($scope.results.searchTerms).then(function(moviesIndexReturn) {
+        elasticFactory.search($scope.results.searchTerms, $scope.resultsPage).then(function(moviesIndexReturn) {
             var totalHits = moviesIndexReturn.hits.total;
 
             if(totalHits){
                 $scope.results.documentsCount = totalHits;
-                $scope.results.documents = elasticFactory.formatElasticSearchResult(moviesIndexReturn.hits.hits);
+                $scope.results.documents.push
+                    .apply($scope.results.documents, elasticFactory.formatElasticSearchResult(moviesIndexReturn.hits.hits));
+
             }else{
                 $scope.noResults = true;
             }
@@ -47,6 +52,21 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
         });
     };
 
+    $scope.getNextPage = function(){
+        $scope.resultsPage++;
+        getResults();
+    }
+
+    $scope.$watchCollection(['results', 'noResults', 'isSearching'], function(){
+        var documentCount = $scope.results.documentsCount;
+
+        if($scope.noResults || $scope.isSearchingm || !documentCount || documentCount <= $scope.results.documents.length){
+            $scope.canGetNextPage = false;
+        }else{
+             $scope.canGetNextPage = true;
+        }
+    });
+
     $scope.search = function() {
         resetResults();
         var searchTerms = $scope.searchTerms;
@@ -56,7 +76,7 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
         }
 
         $scope.results.searchTerms = searchTerms;
-        getResult();
+        getResults();
     }
 
 }])
@@ -84,7 +104,7 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
         }
     }
 
-    service.search = function(searchTerms) {
+    service.search = function(searchTerms, resultsPage) {
         var deferred = $q.defer();
 
         elasticClient.search({
@@ -92,7 +112,14 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
             body: {
                 "query": {
                     "match": {
-                        "title": searchTerms
+                        _all: searchTerms
+                    }
+                },
+                from: resultsPage * 10,
+                highlight: {
+                    fields: {
+                        "title": {number_of_fragmenets: 0},
+                        "director": {number_of_fragmenets: 0}
                     }
                 }
             }
@@ -112,6 +139,18 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
         var fomartedResult = [];
 
         documentsHits.forEach(function(document) {
+            var documunetSource = document._source;
+
+            angular.forEach(documunetSource, function(value, field){
+                var highlights = document.highlight || {};
+                var highlight = highlights[field] || false;
+
+                if(highlight){
+                    documunetSource[field] = highlight[0]
+                }
+            });
+
+
             fomartedResult.push(document._source);
         });
 
@@ -119,4 +158,11 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch'])
     };
 
     return service;
+}])
+.directive('ngBindHtml', ['$sce', function($sce){
+    return function(scope, element, attr){
+        scope.$watch(attr.ngBindHtml, function ngBindHtmlWatchAction(value){
+            element.html($sce.getTrustedHtml(value) || '');
+        });
+    };
 }]);

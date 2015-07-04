@@ -12,12 +12,13 @@
 
     <ul>
         <li ng-repeat="movie in results.documents">
-            <strong>{{movie.title}}</strong>
-            <p>{{movie.director}}</p>
+            <strong ng-bind-html="movie.title"></strong>
+            <p ng-bind-html="movie.director"></p>
         </li>
     </ul>
 
-    <div class="throbber" ng-if="isSearching">
+    <button ng-click="getNextPage()" ng-if="canGetNextPage" class="btn btn-default">Load more results</button>
+    <div class="throbber-loader" ng-if="isSearching">
         SEARCHING &hellip;
     </div>
 </section>
