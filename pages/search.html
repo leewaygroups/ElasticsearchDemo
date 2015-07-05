@@ -5,7 +5,7 @@
     </form>
 </div>
 <section class="results">
-    <h1 class="search-title">
+    <h1 ng-if="!noResults" class="search-title">
         Results for <strong>{{results.searchTerms}}</strong> ({{results.documentsCount}})
     </h1>
     <p ng-if="noResults">No results were found for your search</p>

@@ -170,7 +170,7 @@ var searchApp = angular.module('searchApp', ['ngRoute', 'elasticsearch', 'ngSani
                 var highlight = highlights[field] || false;
 
                 if(highlight){
-                    documunetSource[field] = highlight[0]
+                    documunetSource[field] = highlight[0];
                 }
             });
 
