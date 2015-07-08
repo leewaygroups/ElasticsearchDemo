@@ -1,8 +1,12 @@
 <div class="search-form">
     <form ng-submit="search()">
-        <input ng-model="searchTerms" type="text" placeholder="Search .." class="search-input">
+        <input ng-model="searchTerms" type="text" placeholder="Search .." class="search-input" ng-keyup="evaluateTerms($event)">
         <input type="submit" value="Search" class="search-submit">
     </form>
+    <ul ng-show="showAutocomplete">
+        <li ng-repeat="suggestion in autocomplete.suggestions" ng-show="suggestion.options.length > 0"></li>
+        <small>Search for &mdash;</small>{{suggestion.options[0].text}}
+    </ul>
 </div>
 <section class="results">
     <h1 ng-if="!noResults" class="search-title">
@@ -25,4 +29,14 @@
 <section ng-if="results.searchTerms">
    <strong>Sort by</strong><br>
    <select ng-model="$parent.selectedSort" ng-options="sort.displayName for sort in sortOptions" ng-change="updateSort()"></select>
+    <hr>
+    <h3>Refine by</h3>
+    <div ng-repeat="(filter, filterArray) in filters.availableFilters">
+        <strong>{{filter}}</strong>
+        <ul>
+            <li ng-repeat="obj in filterArray | orderBy:obj.isSelected">
+                <a href="#" ng-class="{active:obj.isSelected}">{{obj.value}}</a>({{obj.count}})
+            </li>
+        </ul>
+    </div>
 </section>
